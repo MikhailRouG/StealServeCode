@@ -1,0 +1,50 @@
+* text=auto eol=lf
+
+# Unity YAML/text assets stay as text so diffs/merges work
+*.cs diff=csharp text
+*.shader text
+*.cginc text
+*.hlsl text
+*.json text
+*.xml text
+*.txt text
+
+# Unity binary/serialized assets must never be line-ending-converted
+*.unity binary
+*.prefab binary
+*.asset binary
+*.mat binary
+*.meta binary
+*.physicsMaterial2D binary
+*.controller binary
+*.anim binary
+*.overrideController binary
+*.mask binary
+*.flare binary
+*.cubemap binary
+*.rendertexture binary
+*.terrainlayer binary
+
+# Binary media/model files
+*.fbx binary
+*.FBX binary
+*.obj binary
+*.blend binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.tga binary
+*.tif binary
+*.tiff binary
+*.psd binary
+*.gif binary
+*.exr binary
+*.hdr binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.ttf binary
+*.otf binary
+*.dll binary
+*.exe binary
+*.pdb binary
