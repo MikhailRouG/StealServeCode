@@ -1,11 +1,13 @@
 using System;
 using UnityEngine;
 
-[Serializable]
+/// <summary>
+/// Plain C# player health (not a MonoBehaviour), created by the container (see <see cref="GameInstaller"/>).
+/// </summary>
 public class PlayerHealth
 {
-    [SerializeField] private int _maxHealth;
-    [SerializeField] private int _currentHealth;
+    private readonly int _maxHealth;
+    private int _currentHealth;
 
     public int MaxHealth => _maxHealth;
     public int CurrentHealth => _currentHealth;

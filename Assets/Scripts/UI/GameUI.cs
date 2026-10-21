@@ -1,16 +1,16 @@
 using UnityEngine;
 
 /// <summary>
-/// UI root: put on the parent object of all UI canvases. <see cref="Bootstrap"/> initializes the whole UI through it,
-/// so new UI only has to be wired up here. Empty references are looked up among the children (even inactive).
+/// UI root: put on the parent object of all UI canvases (the editor UI builders put new canvases under it).
+/// The UI parts get the player through injection (see <see cref="GameInstaller"/>); the root only exposes
+/// the windows that are bound for other objects to open.
 /// </summary>
 public class GameUI : MonoBehaviour
 {
-    [SerializeField] private PlayerUI _playerUI;
-    [SerializeField] private IndexWindow _indexWindow;
+    [Tooltip("If empty, the first CraftingWindow among the children (even inactive) is used.")]
     [SerializeField] private CraftingWindow _craftingWindow;
 
-    /// <summary>The crafting window; opened by <see cref="TruckCraftingMenu"/>. Safe to read in Awake.</summary>
+    /// <summary>The crafting window; opened by <see cref="TruckCraftingMenu"/>. Safe to read in an installer.</summary>
     public CraftingWindow CraftingWindow
     {
         get
@@ -20,19 +20,5 @@ public class GameUI : MonoBehaviour
 
             return _craftingWindow;
         }
-    }
-
-    /// <summary>Gives the player to every UI part that needs it. Called once by <see cref="Bootstrap"/>.</summary>
-    public void Init(Player player)
-    {
-        if (_playerUI == null)
-            _playerUI = GetComponentInChildren<PlayerUI>(true);
-        if (_indexWindow == null)
-            _indexWindow = GetComponentInChildren<IndexWindow>(true);
-
-        if (_playerUI != null)
-            _playerUI.Init(player.Wallet, player.Level, player.Move);
-        if (_indexWindow != null)
-            _indexWindow.Init(player);
     }
 }

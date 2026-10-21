@@ -3,14 +3,15 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using Zenject;
 
 /// <summary>
 /// Item index: a scroll list of <see cref="IndexCategoryData"/> rows (picture, item grid, progress),
 /// details of the selected item on the right and the reward of its category, which can be claimed
-/// once all the category's items are discovered.
+/// once all the category's items are discovered. Only shows the <see cref="IndexRewards"/> model
+/// and sends claims to it; the claimed rewards live in the model.
 /// Put on an always-active object (the canvas); the window itself is <see cref="_panel"/>.
-/// Opened and closed with <see cref="_toggleKey"/>. Initialized by <see cref="Bootstrap"/>.
-/// Build the UI via Tools > Index > Create Index UI.
+/// Opened and closed with <see cref="_toggleKey"/>. Gets the player through injection (see <see cref="GameInstaller"/>).
 /// </summary>
 public class IndexWindow : MonoBehaviour
 {
@@ -18,6 +19,7 @@ public class IndexWindow : MonoBehaviour
     [SerializeField] private Key _toggleKey = Key.I;
     [SerializeField] private GameObject _panel;
     [SerializeField] private Button _closeButton;
+    [SerializeField] private WindowTween _animation = new WindowTween(WindowTween.Style.SlideFromLeft);
 
     [Header("Categories")]
     [SerializeField] private IndexCategoryView _categoryPrefab;
@@ -53,19 +55,21 @@ public class IndexWindow : MonoBehaviour
     [SerializeField] private TMP_Text _claimText;
 
     private readonly List<IndexCategoryView> _views = new List<IndexCategoryView>();
-    private readonly HashSet<IndexCategoryData> _claimed = new HashSet<IndexCategoryData>();
     private Player _player;
+    private PlayerDiscoveries _discoveries;
+    private IndexRewards _rewards;
     private IndexCategoryData _selectedCategory;
     private ItemData _selectedItem;
 
-    public bool IsOpen => _panel.activeSelf;
+    public bool IsOpen => _animation.IsShown;
 
     private void Awake()
     {
         _closeButton.onClick.AddListener(Close);
         _claimButton.onClick.AddListener(Claim);
         CreateViews();
-        _panel.SetActive(false);
+        _animation.Init(_panel);
+        _animation.Hide();
     }
 
     private void OnDestroy()
@@ -73,15 +77,22 @@ public class IndexWindow : MonoBehaviour
         _closeButton.onClick.RemoveListener(Close);
         _claimButton.onClick.RemoveListener(Claim);
 
-        if (_player != null)
-            _player.Discoveries.Discovered -= OnDiscovered;
+        if (_discoveries != null)
+            _discoveries.Discovered -= OnDiscovered;
+        if (_rewards != null)
+            _rewards.Claimed -= OnClaimed;
     }
 
-    /// <summary>Starts tracking the player's discoveries. Called once by <see cref="Bootstrap"/>.</summary>
-    public void Init(Player player)
+    [Inject]
+    private void Construct(Player player, PlayerDiscoveries discoveries, IndexRewards rewards)
     {
+        // The player is only needed to stop it while the window is open.
         _player = player;
-        _player.Discoveries.Discovered += OnDiscovered;
+        _discoveries = discoveries;
+        _rewards = rewards;
+
+        _discoveries.Discovered += OnDiscovered;
+        _rewards.Claimed += OnClaimed;
     }
 
     /// <summary>Shows the window. Does nothing while another menu has the player stopped.</summary>
@@ -92,7 +103,7 @@ public class IndexWindow : MonoBehaviour
 
         // Freezing also unlocks the cursor.
         _player.Move.Freeze(true);
-        _panel.SetActive(true);
+        _animation.Show();
         Refresh();
         _scroll.verticalNormalizedPosition = 1f;
     }
@@ -102,7 +113,7 @@ public class IndexWindow : MonoBehaviour
         if (!IsOpen)
             return;
 
-        _panel.SetActive(false);
+        _animation.Hide();
         _player.Move.Freeze(false);
     }
 
@@ -139,6 +150,12 @@ public class IndexWindow : MonoBehaviour
             Refresh();
     }
 
+    private void OnClaimed(IndexCategoryData category)
+    {
+        if (IsOpen)
+            Refresh();
+    }
+
     private void Select(IndexCategoryView view, ItemData item)
     {
         _selectedCategory = view.Category;
@@ -149,7 +166,7 @@ public class IndexWindow : MonoBehaviour
     private void Refresh()
     {
         foreach (IndexCategoryView view in _views)
-            view.Refresh(_player.Discoveries, _selectedItem, GetLevelColor, _silhouetteColor);
+            view.Refresh(_discoveries, _selectedItem, GetLevelColor, _silhouetteColor);
 
         ShowUnlocked();
         ShowDetails();
@@ -207,25 +224,18 @@ public class IndexWindow : MonoBehaviour
         _rewardMoneyText.text = $"${category.RewardMoney}";
         _rewardSpeedText.text = $"+{category.RewardSpeedStat}";
 
-        bool claimed = _claimed.Contains(category);
-        bool complete = category.IsComplete(_player.Discoveries);
-        _claimButton.interactable = complete && !claimed;
+        bool claimed = _rewards.IsClaimed(category);
+        bool complete = category.IsComplete(_discoveries);
+        _claimButton.interactable = _rewards.CanClaim(category);
         _claimText.text = claimed ? "CLAIMED!" : complete ? "CLAIM" : "LOCKED";
     }
 
     private void Claim()
     {
-        IndexCategoryData category = _selectedCategory;
-        if (category == null || _claimed.Contains(category) || !category.IsComplete(_player.Discoveries))
-            return;
-
-        _claimed.Add(category);
-        _player.Wallet.Add(category.RewardMoney);
-        _player.Move.AddSpeedStat(category.RewardSpeedStat);
-        Refresh();
+        _rewards.TryClaim(_selectedCategory);
     }
 
-    private bool IsDiscovered(ItemData item) => _player.Discoveries.HasDelivered(item);
+    private bool IsDiscovered(ItemData item) => _discoveries.HasDelivered(item);
 
     private Color GetLevelColor(int level)
     {

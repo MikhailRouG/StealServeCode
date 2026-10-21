@@ -1,8 +1,9 @@
 using R3;
+using TMPro;
 using UnityEngine;
 
 /// <summary>
-/// Item capsule: a pickup that shows the model of its <see cref="ItemData"/> and disappears when picked up.
+/// Item capsule: a pickup that shows the model and level ("Lvl N") of its <see cref="ItemData"/> and disappears when picked up.
 /// The item models themselves are plain visuals; this capsule provides the collider and pickup logic.
 /// Needs a Collider with "Is Trigger" enabled.
 /// </summary>
@@ -11,6 +12,10 @@ public class CollectableItem : MonoBehaviour, ICollectable
 {
     [SerializeField] private ItemData _data;
     [SerializeField] private GameObject _pickupEffect;
+    [Tooltip("Shows the item's level as \"Lvl N\".")]
+    [SerializeField] private TMP_Text _levelText;
+    [Tooltip("How many times the item model is scaled up inside the capsule (1 = the model's own scale).")]
+    [SerializeField, Min(0.01f)] private float _modelScale = 1f;
 
     private readonly Subject<CollectableItem> _collected = new Subject<CollectableItem>();
     private bool _isCollected;
@@ -39,13 +44,15 @@ public class CollectableItem : MonoBehaviour, ICollectable
     private void Start()
     {
         RefreshModel();
+        RefreshLevelText();
     }
 
-    /// <summary>Sets the item this capsule holds and shows its model.</summary>
+    /// <summary>Sets the item this capsule holds and shows its model and level.</summary>
     public void SetData(ItemData data)
     {
         _data = data;
         RefreshModel();
+        RefreshLevelText();
     }
 
     public void OnCollected()
@@ -61,6 +68,12 @@ public class CollectableItem : MonoBehaviour, ICollectable
             Destroy(gameObject);
         else
             gameObject.SetActive(false);
+    }
+
+    private void RefreshLevelText()
+    {
+        if (_levelText != null)
+            _levelText.text = _data != null ? $"Lvl {_data.Level}" : string.Empty;
     }
 
     private void RefreshModel()
@@ -84,6 +97,6 @@ public class CollectableItem : MonoBehaviour, ICollectable
         Transform model = _model.transform;
         model.localPosition = Vector3.zero;
         model.localRotation = Quaternion.identity;
-        model.localScale = prefab.transform.localScale;
+        model.localScale = prefab.transform.localScale * _modelScale;
     }
 }

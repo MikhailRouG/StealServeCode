@@ -8,7 +8,7 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public class HubZone : MonoBehaviour
 {
-    [SerializeField] private CarStorage _storage = new CarStorage();
+    private readonly CarStorage _storage = new CarStorage();
 
     public CarStorage Storage => _storage;
 

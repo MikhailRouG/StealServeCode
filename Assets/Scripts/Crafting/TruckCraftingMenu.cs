@@ -1,5 +1,6 @@
 using Unity.Cinemachine;
 using UnityEngine;
+using Zenject;
 
 /// <summary>
 /// Put on the <see cref="HubZone"/>: when the player clicks on the truck (see <see cref="PlayerClicker"/>),
@@ -10,8 +11,6 @@ using UnityEngine;
 [RequireComponent(typeof(TruckKitchen))]
 public class TruckCraftingMenu : MonoBehaviour, IClickable
 {
-    [Tooltip("If empty, the crafting window of the scene's GameUI is used.")]
-    [SerializeField] private CraftingWindow _window;
     [Tooltip("Camera that shows the truck while the menu is open.")]
     [SerializeField] private CinemachineCamera _menuCamera;
     [Tooltip("The player must be closer to the truck than this to open the menu. 0 = any distance.")]
@@ -20,42 +19,35 @@ public class TruckCraftingMenu : MonoBehaviour, IClickable
     [SerializeField] private Collider _clickArea;
 
     private TruckKitchen _kitchen;
+    private CraftingWindow _window;
+
+    [Inject]
+    private void Construct(CraftingWindow window)
+    {
+        _window = window;
+    }
 
     private void Awake()
     {
         _kitchen = GetComponent<TruckKitchen>();
-
-        if (_window == null)
-        {
-            GameUI ui = FindFirstObjectByType<GameUI>();
-            if (ui != null)
-                _window = ui.CraftingWindow;
-        }
-
         SetMenuCamera(false);
     }
 
     private void OnEnable()
     {
-        if (_window == null)
-            return;
-
         _window.Opened += OnWindowOpened;
         _window.Closed += OnWindowClosed;
     }
 
     private void OnDisable()
     {
-        if (_window == null)
-            return;
-
         _window.Opened -= OnWindowOpened;
         _window.Closed -= OnWindowClosed;
     }
 
     public void OnClicked(Player player)
     {
-        if (_window == null || _window.IsOpen || !IsCloseEnough(player))
+        if (_window.IsOpen || !IsCloseEnough(player))
             return;
 
         _window.Open(_kitchen, player);

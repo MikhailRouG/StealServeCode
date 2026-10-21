@@ -1,4 +1,5 @@
 using UnityEngine;
+using Zenject;
 
 /// <summary>
 /// Watches the player's <see cref="PlayerDiscoveries"/> and grants the reward item once every item
@@ -9,21 +10,27 @@ public class ItemSetQuest : MonoBehaviour
 {
     [SerializeField] private ItemSetQuestData _quest;
 
-    private Player _player;
+    private PlayerDiscoveries _discoveries;
+    private Inventory _inventory;
     private bool _completed;
 
-    /// <summary>Starts watching for the quest's items. Called once by <see cref="Bootstrap"/>.</summary>
-    public void Init(Player player)
+    [Inject]
+    private void Construct(PlayerDiscoveries discoveries, Inventory inventory)
     {
-        _player = player;
-        _player.Discoveries.Discovered += OnDiscovered;
+        _discoveries = discoveries;
+        _inventory = inventory;
+        _discoveries.Discovered += OnDiscovered;
+    }
+
+    private void Start()
+    {
         TryComplete();
     }
 
     private void OnDestroy()
     {
-        if (_player != null)
-            _player.Discoveries.Discovered -= OnDiscovered;
+        if (_discoveries != null)
+            _discoveries.Discovered -= OnDiscovered;
     }
 
     private void OnDiscovered(ItemData item) => TryComplete();
@@ -35,11 +42,11 @@ public class ItemSetQuest : MonoBehaviour
 
         foreach (ItemData required in _quest.RequiredItems)
         {
-            if (!_player.Discoveries.HasDelivered(required))
+            if (!_discoveries.HasDelivered(required))
                 return;
         }
 
         _completed = true;
-        _player.Inventory.Add(_quest.RewardItem);
+        _inventory.Add(_quest.RewardItem);
     }
 }

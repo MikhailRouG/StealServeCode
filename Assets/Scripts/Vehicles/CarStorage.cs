@@ -1,22 +1,19 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 
-[Serializable]
 public class StoredItem
 {
     public ItemData Item;
-    [Min(0)] public int Count;
+    public int Count;
 }
 
 /// <summary>
 /// Plain C# item storage (not a MonoBehaviour), owned by <see cref="HubZone"/>.
-/// Keeps any number of items of each type. Shown in the HubZone's inspector.
+/// Starts empty and keeps any number of items of each type.
 /// </summary>
-[Serializable]
 public class CarStorage
 {
-    [SerializeField] private List<StoredItem> _items = new List<StoredItem>();
+    private readonly List<StoredItem> _items = new List<StoredItem>();
 
     /// <summary>Raised after items are added or removed.</summary>
     public event Action Changed;

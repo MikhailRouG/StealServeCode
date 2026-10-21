@@ -4,9 +4,11 @@ using UnityEngine;
 using UnityEngine.Serialization;
 
 /// <summary>
-/// Places a set of objects on the top surface of this object's collider when <see cref="Init"/> is called (by <see cref="Bootstrap"/>).
+/// Places a set of objects on the top surface of this object's collider on Start.
 /// A removed object (collected, killed...) reappears at another random point on the surface.
 /// Subclasses decide when it comes back by calling <see cref="Respawn"/>.
+/// The objects live in a container at the scene root, so they can all be turned off at once
+/// (<see cref="SetSpawnedActive"/>) without touching their own active state, which means "removed".
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public abstract class SurfaceSpawner<T> : MonoBehaviour where T : Component
@@ -20,14 +22,13 @@ public abstract class SurfaceSpawner<T> : MonoBehaviour where T : Component
     [Tooltip("Distance from the edges of the surface where objects won't appear.")]
     [SerializeField, Min(0f)] private float _edgePadding = 0.5f;
     [SerializeField] private bool _alignToSurfaceNormal = false;
-    [SerializeField] private bool _randomYRotation = true;
 
     private const int MaxPlacementAttempts = 15;
 
     private Collider _surface;
+    private Transform _container;
     private readonly List<T> _spawned = new List<T>();
     private readonly CompositeDisposable _subscriptions = new CompositeDisposable();
-    private bool _isInitialized;
 
     protected Collider Surface => _surface;
     protected float HeightOffset => _heightOffset;
@@ -36,7 +37,7 @@ public abstract class SurfaceSpawner<T> : MonoBehaviour where T : Component
     protected CompositeDisposable Subscriptions => _subscriptions;
     protected virtual Color GizmoColor => new Color(0.2f, 1f, 0.4f, 0.4f);
 
-    /// <summary>Creates the initial objects with <see cref="Spawn"/>. Called once from <see cref="Init"/>.</summary>
+    /// <summary>Creates the initial objects with <see cref="Spawn"/>. Called once on Start.</summary>
     protected abstract void SpawnAll();
 
     /// <summary>
@@ -51,21 +52,32 @@ public abstract class SurfaceSpawner<T> : MonoBehaviour where T : Component
     private void Awake()
     {
         _surface = GetComponent<Collider>();
+
+        // At the scene root, so the objects don't inherit the surface's scale.
+        _container = new GameObject($"{name} (Spawned)").transform;
     }
 
-    /// <summary>Spawns all objects. Called once by <see cref="Bootstrap"/>.</summary>
-    public void Init()
+    // Dependencies are injected before Awake, so subclasses have them all here.
+    protected virtual void Start()
     {
-        if (_isInitialized)
-            return;
-        _isInitialized = true;
-
         SpawnAll();
     }
 
     private void OnDestroy()
     {
         _subscriptions.Dispose();
+
+        if (_container != null)
+            Destroy(_container.gameObject);
+    }
+
+    /// <summary>
+    /// Turns all spawned objects off or back on. Removed objects stay off either way,
+    /// and objects respawned while off appear once turned back on.
+    /// </summary>
+    protected void SetSpawnedActive(bool active)
+    {
+        _container.gameObject.SetActive(active);
     }
 
     /// <summary>Brings the object back at a new point right away. The object should already be deactivated.</summary>
@@ -85,7 +97,7 @@ public abstract class SurfaceSpawner<T> : MonoBehaviour where T : Component
     {
         // Instantiate directly at the spawn point, so physics components (e.g. CharacterController) start in the right place.
         GetSpawnPose(null, out Vector3 position, out Quaternion rotation);
-        T obj = Instantiate(prefab, position, rotation);
+        T obj = Instantiate(prefab, position, rotation, _container);
         _spawned.Add(obj);
         OnSpawned(obj);
         return obj;
@@ -111,8 +123,6 @@ public abstract class SurfaceSpawner<T> : MonoBehaviour where T : Component
 
         Vector3 up = _alignToSurfaceNormal ? normal : Vector3.up;
         rotation = Quaternion.FromToRotation(Vector3.up, up);
-        if (_randomYRotation)
-            rotation *= Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
     }
 
     /// <summary>Random point on top of the surface, away from the edges.</summary>

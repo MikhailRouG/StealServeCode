@@ -52,11 +52,14 @@ public class Client : MonoBehaviour
         _stateMachine.SetState(_walkState);
     }
 
-    /// <summary>The item in <paramref name="slot"/> is paid for: go to the showcase's client point and take it.</summary>
-    public void StartBuying(TruckShowcase showcase, int slot)
+    /// <summary>
+    /// The item in <paramref name="slot"/> is chosen: go to the showcase's client point and take it.
+    /// <paramref name="taken"/> is called when the item is taken (that's when the player gets paid).
+    /// </summary>
+    public void StartBuying(TruckShowcase showcase, int slot, System.Action taken)
     {
         HasBought = true;
-        _buyingState.Setup(showcase, slot);
+        _buyingState.Setup(showcase, slot, taken);
         _stateMachine.SetState(_buyingState);
     }
 

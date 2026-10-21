@@ -13,7 +13,7 @@ public class DishData : ItemData
     [SerializeField, Min(0f)] private float _cookTime = 5f;
 
     [Header("Sale")]
-    [Tooltip("Money the player gets when a client buys the dish.")]
+    [Tooltip("Money the player gets when a client takes the bought dish.")]
     [SerializeField, Min(0)] private int _price = 10;
     [Tooltip("How much clients want the dish: the higher, the more often they choose it.")]
     [SerializeField, Range(0, 100)] private int _interest = 0;

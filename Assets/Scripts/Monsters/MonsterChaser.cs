@@ -1,8 +1,10 @@
 using R3;
 using UnityEngine;
+using Zenject;
 
 /// <summary>
 /// Doesn't know about items: the spawner switches it between chasing and guarding.
+/// Chases the injected <see cref="Player"/> and reports its chase state to the <see cref="ChaseTracker"/>.
 /// <see cref="StartChase"/> — chase the player until <see cref="Guard"/> is called or the player dies.
 /// <see cref="Guard"/> — stop chasing and walk to the guard point next to the item.
 /// Moves a kinematic Rigidbody along the ground plane in FixedUpdate: no gravity, the height stays as spawned.
@@ -34,8 +36,7 @@ public class MonsterChaser : MonoBehaviour
     [SerializeField, Min(0f)] private float _pauseAfterAttack = 1f;
 
     private Rigidbody _rigidbody;
-    private Transform _target;
-    private PlayerHealth _targetHealth;
+    private Player _target;
     private float _nextAttackTime;
     private float _chaseStartTime;
     private float _moveResumeTime;
@@ -47,13 +48,18 @@ public class MonsterChaser : MonoBehaviour
 
     private readonly ReactiveProperty<bool> _isChasing = new ReactiveProperty<bool>(false);
     private readonly ReactiveProperty<bool> _isRunning = new ReactiveProperty<bool>(false);
+    private readonly ReactiveProperty<bool> _isReturning = new ReactiveProperty<bool>(false);
     private readonly Subject<Unit> _attacked = new Subject<Unit>();
+    private readonly CompositeDisposable _subscriptions = new CompositeDisposable();
 
     /// <summary>True while the monster chases the player; subscribe to react to the start and end of a chase.</summary>
     public ReadOnlyReactiveProperty<bool> IsChasing => _isChasing;
 
     /// <summary>True while the monster runs after the player (after the chase delay) or walks to its guard point.</summary>
     public ReadOnlyReactiveProperty<bool> IsRunning => _isRunning;
+
+    /// <summary>True while the monster walks back to its guard point after <see cref="Guard"/>; false once it is there.</summary>
+    public ReadOnlyReactiveProperty<bool> IsReturning => _isReturning;
 
     /// <summary>Fires every time the monster hits the player.</summary>
     public Observable<Unit> Attacked => _attacked;
@@ -66,8 +72,10 @@ public class MonsterChaser : MonoBehaviour
 
     private void OnDestroy()
     {
+        _subscriptions.Dispose();
         _isChasing.Dispose();
         _isRunning.Dispose();
+        _isReturning.Dispose();
         _attacked.Dispose();
     }
 
@@ -75,16 +83,31 @@ public class MonsterChaser : MonoBehaviour
     {
         _isChasing.Value = false;
         _isRunning.Value = false;
+        _isReturning.Value = false;
         _nextAttackTime = 0f;
         _moveResumeTime = 0f;
         _hasGuardPoint = false;
     }
 
-    /// <summary>Called by the spawner: the target is chased after <see cref="StartChase"/>.</summary>
-    public void Init(Player target)
+    // A killed monster is disabled mid-chase: it must not keep counting as chasing while hidden.
+    private void OnDisable()
     {
-        _target = target != null ? target.transform : null;
-        _targetHealth = target != null ? target.Health : null;
+        _isChasing.Value = false;
+        _isRunning.Value = false;
+        _isReturning.Value = false;
+    }
+
+    [Inject]
+    private void Construct(Player target, ChaseTracker chaseTracker)
+    {
+        _target = target;
+
+        // ReactiveProperty skips repeated values, so every true is matched by exactly one false
+        // (OnDisable drops it to false, so a killed or destroyed chaser doesn't stay counted).
+        _isChasing
+            .Skip(1)
+            .Subscribe(chaseTracker.SetChasing)
+            .AddTo(_subscriptions);
     }
 
     /// <summary>Starts chasing the target (the spawner calls it when the guarded item is picked up).</summary>
@@ -94,15 +117,19 @@ public class MonsterChaser : MonoBehaviour
             return;
 
         _chaseStartTime = Time.time + _chaseDelay;
+        _isReturning.Value = false;
         _isChasing.Value = true;
     }
 
     /// <summary>Stops the chase and walks to the point (the spawner calls it when the guarded item is back on the map).</summary>
     public void Guard(Vector3 point)
     {
-        _isChasing.Value = false;
         _guardPoint = point;
         _hasGuardPoint = true;
+
+        // Returning is set first, so whoever reacts to the end of the chase already sees the monster on its way back.
+        _isReturning.Value = true;
+        _isChasing.Value = false;
     }
 
     // Kinematic Rigidbody moves belong in FixedUpdate; Time.deltaTime returns the fixed step here.
@@ -117,7 +144,7 @@ public class MonsterChaser : MonoBehaviour
         bool isRunning = isChasing;
         if (isChasing)
         {
-            velocity = GetVelocityTo(_target.position, _stopDistance);
+            velocity = GetVelocityTo(_target.transform.position, _stopDistance);
 
             // After a hit the monster keeps facing the player but doesn't move.
             if (Time.time < _moveResumeTime)
@@ -138,23 +165,20 @@ public class MonsterChaser : MonoBehaviour
 
     private bool CanChase()
     {
-        if (_target == null || !_target.gameObject.activeInHierarchy)
-            return false;
-
-        return _targetHealth == null || !_targetHealth.IsDead;
+        return _target != null && _target.gameObject.activeInHierarchy && !_target.Health.IsDead;
     }
 
     private void TryAttack()
     {
-        if (_targetHealth == null || _targetHealth.IsDead || Time.time < _nextAttackTime)
+        if (_target.Health.IsDead || Time.time < _nextAttackTime)
             return;
 
-        Vector3 toTarget = _target.position - _rigidbody.position;
+        Vector3 toTarget = _target.transform.position - _rigidbody.position;
         toTarget.y = 0f;
         if (toTarget.sqrMagnitude > _attackRange * _attackRange)
             return;
 
-        _targetHealth.TakeDamage(_damage);
+        _target.Health.TakeDamage(_damage);
         _nextAttackTime = Time.time + _attackCooldown;
         _moveResumeTime = Time.time + _pauseAfterAttack;
         _attacked.OnNext(Unit.Default);
@@ -165,7 +189,10 @@ public class MonsterChaser : MonoBehaviour
     {
         Vector3 velocity = GetVelocityTo(_guardPoint, GuardPointReachDistance);
         if (velocity == Vector3.zero)
+        {
             _hasGuardPoint = false;
+            _isReturning.Value = false;
+        }
 
         return velocity;
     }

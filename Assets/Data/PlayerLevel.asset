@@ -13,13 +13,13 @@ MonoBehaviour:
   m_Name: PlayerLevel
   m_EditorClassIdentifier: Assembly-CSharp::LevelCurveData
   _levels:
-  - experienceToNextLevel: 100
+  - experienceToNextLevel: 50
     speedStat: 100
   - experienceToNextLevel: 200
     speedStat: 200
-  - experienceToNextLevel: 300
-    speedStat: 400
   - experienceToNextLevel: 400
+    speedStat: 400
+  - experienceToNextLevel: 800
     speedStat: 800
-  - experienceToNextLevel: 1000
+  - experienceToNextLevel: 2000
     speedStat: 1000

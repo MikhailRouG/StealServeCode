@@ -1,69 +1,69 @@
 using UnityEngine;
+using Zenject;
 
 /// <summary>
-/// Player root: gives access to the player's components and sets up its start state.
-/// Initialized by <see cref="Bootstrap"/>.
+/// Player root: gives access to the player's components and models. Bound in <see cref="GameInstaller"/>.
+/// The models (inventory, wallet, level, health...) are created by the container, not stored here;
+/// the player only exposes them for code that gets the player from a collision (hub, request points)
+/// and for its own components. Everything else can inject the models directly.
+/// Placed at the spawn point by <see cref="PlayerRespawner"/>.
 /// </summary>
 [RequireComponent(typeof(PlayerMove))]
 [RequireComponent(typeof(PlayerCollector))]
 public class Player : MonoBehaviour
 {
-    [SerializeField] private Inventory _inventory = new Inventory();
-    [SerializeField] private PlayerHealth _health;
-    [SerializeField] private Wallet _wallet = new Wallet();
-    [SerializeField] private PlayerLevel _level = new PlayerLevel();
-
-    private readonly PlayerDiscoveries _discoveries = new PlayerDiscoveries();
     private CharacterController _controller;
 
     public PlayerMove Move { get; private set; }
-    public PlayerHealth Health => _health;
-    public Inventory Inventory => _inventory;
-    public Wallet Wallet => _wallet;
-    public PlayerLevel Level => _level;
-    public PlayerDiscoveries Discoveries => _discoveries;
+    public PlayerHealth Health { get; private set; }
+    public Inventory Inventory { get; private set; }
+    public Wallet Wallet { get; private set; }
+    public PlayerLevel Level { get; private set; }
+    public PlayerStats Stats { get; private set; }
+    public PlayerDiscoveries Discoveries { get; private set; }
 
-    private void Awake()
+    [Inject]
+    private void Construct(
+        PlayerHealth health,
+        Inventory inventory,
+        Wallet wallet,
+        PlayerLevel level,
+        PlayerStats stats,
+        PlayerDiscoveries discoveries)
     {
         _controller = GetComponent<CharacterController>();
         Move = GetComponent<PlayerMove>();
 
-        _level.Recalculate();
-        Move.SetLevel(_level.Level);
-        _level.LevelUp += OnLevelUp;
+        Health = health;
+        Inventory = inventory;
+        Wallet = wallet;
+        Level = level;
+        Stats = stats;
+        Discoveries = discoveries;
+
+        Health.Died += OnDied;
     }
 
     private void OnDestroy()
     {
-        if (_health != null)
-            _health.Died -= OnDied;
-
-        _level.LevelUp -= OnLevelUp;
-    }
-
-    public void Init(Vector3 position, Quaternion rotation, int maxHealth)
-    {
-        Teleport(position, rotation);
-        _health = new PlayerHealth(maxHealth);
-        _health.Died += OnDied;
+        if (Health != null)
+            Health.Died -= OnDied;
     }
 
     /// <summary>Moves the player to the point, restores full health and turns the player back on.</summary>
     public void Respawn(Vector3 position, Quaternion rotation)
     {
         Teleport(position, rotation);
-        _health.Restore();
+        Health.Restore();
         gameObject.SetActive(true);
     }
 
     // A dead player loses all items and is turned off until respawned.
     private void OnDied()
     {
-        _inventory.Clear();
+        Inventory.Clear();
         gameObject.SetActive(false);
     }
-
-    private void OnLevelUp(int newLevel) => Move.SetLevel(newLevel);
 
     public void Teleport(Vector3 position, Quaternion rotation)
     {

@@ -85,6 +85,18 @@ public class TruckShowcase : MonoBehaviour
         RemoveAt(slot);
     }
 
+    /// <summary>The client left without taking the item from <paramref name="slot"/>: it is up for sale again.</summary>
+    public void Release(int slot)
+    {
+        if (slot < 0 || slot >= _items.Length || !_reserved[slot])
+            return;
+
+        _reserved[slot] = false;
+        DishData item = _items[slot];
+        Changed?.Invoke();
+        Placed?.Invoke(item);
+    }
+
     private void RemoveAt(int index)
     {
         if (_models[index] != null)

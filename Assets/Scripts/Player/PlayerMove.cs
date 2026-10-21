@@ -1,14 +1,12 @@
-using System;
 using UnityEngine;
+using Zenject;
 
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(PlayerInputHandler))]
 public class PlayerMove : MonoBehaviour
 {
     [Header("Speed")]
-    [Tooltip("Speed stat per level. See LevelCurveData.")]
-    [SerializeField] private LevelCurveData _levelCurve;
-    [Tooltip("Walk speed at speed stat 100.")]
+    [Tooltip("Walk speed at speed stat 100. The stat itself comes from PlayerStats.")]
     [SerializeField, Min(0f)] private float _baseWalkSpeed = 2f;
 
     [Header("Rotation")]
@@ -26,23 +24,30 @@ public class PlayerMove : MonoBehaviour
     private Vector3 _horizontalVelocity;
     private float _verticalVelocity;
     private float _walkSpeed;
-    private float _levelSpeedStat = SpeedStat.Base;
-    private float _bonusSpeedStat;
+    private PlayerStats _stats;
 
     public bool IsGrounded => _controller.isGrounded;
     public float CurrentSpeed => _horizontalVelocity.magnitude;
     /// <summary>True while <see cref="Freeze"/> holds the player in place.</summary>
     public bool IsFrozen { get; private set; }
-    /// <summary>Displayed speed stat: 100 at the start.</summary>
-    public float CurrentSpeedStat { get; private set; } = SpeedStat.Base;
-
-    /// <summary>Raised with the new speed stat.</summary>
-    public event Action<float> SpeedStatChanged;
+    [Inject]
+    private void Construct(PlayerStats stats)
+    {
+        _stats = stats;
+        _stats.SpeedStatChanged += OnSpeedStatChanged;
+        OnSpeedStatChanged(_stats.CurrentSpeedStat);
+    }
 
     private void Awake()
     {
         _controller = GetComponent<CharacterController>();
         _input = GetComponent<PlayerInputHandler>();
+    }
+
+    private void OnDestroy()
+    {
+        if (_stats != null)
+            _stats.SpeedStatChanged -= OnSpeedStatChanged;
     }
 
     private void OnEnable()
@@ -89,28 +94,9 @@ public class PlayerMove : MonoBehaviour
         _verticalVelocity = 0f;
     }
 
-    /// <summary>Sets the speed stat for the given player level. Bonuses from <see cref="AddSpeedStat"/> are kept.</summary>
-    public void SetLevel(int level)
+    private void OnSpeedStatChanged(float speedStat)
     {
-        _levelSpeedStat = _levelCurve.GetSpeedStat(level);
-        ApplySpeedStat();
-    }
-
-    /// <summary>Adds a permanent bonus on top of the level's speed stat (e.g. an index reward).</summary>
-    public void AddSpeedStat(float amount)
-    {
-        if (amount <= 0f)
-            return;
-
-        _bonusSpeedStat += amount;
-        ApplySpeedStat();
-    }
-
-    private void ApplySpeedStat()
-    {
-        CurrentSpeedStat = SpeedStat.Clamp(_levelSpeedStat + _bonusSpeedStat);
-        _walkSpeed = SpeedStat.ToWorldSpeed(CurrentSpeedStat, _baseWalkSpeed);
-        SpeedStatChanged?.Invoke(CurrentSpeedStat);
+        _walkSpeed = SpeedStat.ToWorldSpeed(speedStat, _baseWalkSpeed);
     }
 
     // Smoothly turns the player to face the direction it is moving in.

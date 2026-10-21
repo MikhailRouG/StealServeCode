@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6a3d9e1f2b7c4e58a0d4c1b9e7f25a63, type: 3}
+  m_Name: WashedCherry
+  m_EditorClassIdentifier: Assembly-CSharp::DishData
+  _itemName: Washed Cherry
+  _icon: {fileID: 21300000, guid: c5541f1d5c7d3ff46bdc3490eada96e1, type: 3}
+  _model: {fileID: 4719102879288675592, guid: 55193f2f6419ec9429a8c8a226daa1db, type: 3}
+  _level: 2
+  _experience: 40
+  _cookTime: 5
+  _price: 15
+  _interest: 30

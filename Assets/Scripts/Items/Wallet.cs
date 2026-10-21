@@ -1,13 +1,12 @@
 using System;
-using UnityEngine;
 
 /// <summary>
-/// Plain C# player money (not a MonoBehaviour), owned by <see cref="Player"/>. Kept on death.
+/// Plain C# player money (not a MonoBehaviour), created by the container (see <see cref="GameInstaller"/>).
+/// Starts at 0. Kept on death.
 /// </summary>
-[Serializable]
 public class Wallet
 {
-    [SerializeField, Min(0)] private int _money;
+    private int _money;
 
     public int Money => _money;
 

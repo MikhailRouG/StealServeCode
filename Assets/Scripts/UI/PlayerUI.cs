@@ -1,9 +1,10 @@
 using TMPro;
 using UnityEngine;
+using Zenject;
 
 /// <summary>
 /// Player HUD: shows the player's money, level, experience and speed stat and updates them when they change.
-/// Initialized by <see cref="Bootstrap"/>.
+/// Gets the player's models through injection (see <see cref="GameInstaller"/>).
 /// </summary>
 public class PlayerUI : MonoBehaviour
 {
@@ -14,26 +15,26 @@ public class PlayerUI : MonoBehaviour
 
     private Wallet _wallet;
     private PlayerLevel _level;
-    private PlayerMove _move;
+    private PlayerStats _stats;
 
     private void OnDestroy()
     {
         Unsubscribe();
     }
 
-    /// <summary>Starts showing the player's money, level and speed. Called once by <see cref="Bootstrap"/>.</summary>
-    public void Init(Wallet wallet, PlayerLevel level, PlayerMove move)
+    [Inject]
+    private void Construct(Wallet wallet, PlayerLevel level, PlayerStats stats)
     {
         Unsubscribe();
 
         _wallet = wallet;
         _level = level;
-        _move = move;
+        _stats = stats;
 
-        if (_move != null)
+        if (_stats != null)
         {
-            _move.SpeedStatChanged += OnSpeedStatChanged;
-            OnSpeedStatChanged(_move.CurrentSpeedStat);
+            _stats.SpeedStatChanged += OnSpeedStatChanged;
+            OnSpeedStatChanged(_stats.CurrentSpeedStat);
         }
 
         if (_wallet != null)
@@ -55,8 +56,8 @@ public class PlayerUI : MonoBehaviour
             _wallet.Changed -= OnMoneyChanged;
         if (_level != null)
             _level.ExperienceChanged -= OnExperienceChanged;
-        if (_move != null)
-            _move.SpeedStatChanged -= OnSpeedStatChanged;
+        if (_stats != null)
+            _stats.SpeedStatChanged -= OnSpeedStatChanged;
     }
 
     private void OnSpeedStatChanged(float speedStat)
@@ -74,7 +75,7 @@ public class PlayerUI : MonoBehaviour
     private void OnExperienceChanged(int experience, int experienceToNextLevel)
     {
         if (_levelText != null)
-            _levelText.text = $"Lv. {_level.Level}";
+            _levelText.text = $" {_level.Level}";
 
         if (_experienceText != null)
             _experienceText.text = $"{experience}/{experienceToNextLevel}";

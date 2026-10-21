@@ -1,10 +1,12 @@
 using System;
 using UnityEngine;
+using Zenject;
 
 /// <summary>
 /// Put on the <see cref="HubZone"/>: cooks one recipe at a time. Ingredients are taken from the hub's storage
 /// when cooking starts; after the dish's <see cref="DishData.CookTime"/> the dishes go straight onto the
 /// <see cref="TruckShowcase"/>. If the showcase is full, the ready dishes wait until a point frees up.
+/// The player gets each dish's <see cref="ItemData.Experience"/> when the dishes are ready.
 /// Started from the <see cref="CraftingWindow"/>.
 /// </summary>
 [RequireComponent(typeof(HubZone))]
@@ -15,6 +17,8 @@ public class TruckKitchen : MonoBehaviour
     private TruckShowcase _showcase;
     private float _readyTime;
     private int _dishesLeft;
+    private bool _isRewarded;
+    private PlayerLevel _level;
 
     /// <summary>The recipe being cooked, or null.</summary>
     public RecipeData Current { get; private set; }
@@ -34,10 +38,24 @@ public class TruckKitchen : MonoBehaviour
         _showcase = GetComponent<TruckShowcase>();
     }
 
+    // The player gets the cooking experience.
+    [Inject]
+    private void Construct(PlayerLevel level)
+    {
+        _level = level;
+    }
+
     private void Update()
     {
         if (!IsCooking || Time.time < _readyTime)
             return;
+
+        // Experience is given once, when the dishes are ready (even if they still wait for a showcase point).
+        if (!_isRewarded)
+        {
+            _isRewarded = true;
+            _level.AddExperience(Current.Result.Experience * Current.ResultAmount);
+        }
 
         while (_dishesLeft > 0 && _showcase.TryPlace(Current.Result))
             _dishesLeft--;
@@ -59,6 +77,7 @@ public class TruckKitchen : MonoBehaviour
 
         Current = recipe;
         _dishesLeft = recipe.ResultAmount;
+        _isRewarded = false;
         _readyTime = Time.time + recipe.Result.CookTime;
         Changed?.Invoke();
         return true;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Keeps a pool of clients created when <see cref="Init"/> is called (by <see cref="Bootstrap"/>).
+/// Keeps a pool of clients created on Start.
 /// Every interval a free client appears at point A or B and walks with a random speed along X
 /// to the other point's X, where it turns off and goes back to the pool.
 /// Each spawned client gets a random interest (see <see cref="ClientSales"/>).
@@ -25,7 +25,6 @@ public class ClientSpawner : MonoBehaviour
     [SerializeField] private Vector3 _pointB = new Vector3(5f, 0f, 0f);
 
     private readonly List<Client> _pool = new List<Client>();
-    private bool _isInitialized;
 
     /// <summary>All pooled clients; the walking ones are active.</summary>
     public IReadOnlyList<Client> Clients => _pool;
@@ -36,13 +35,9 @@ public class ClientSpawner : MonoBehaviour
     private Vector3 PointA => transform.position + _pointA;
     private Vector3 PointB => transform.position + _pointB;
 
-    /// <summary>Creates the pool and starts spawning clients. Called once by <see cref="Bootstrap"/>.</summary>
-    public void Init()
+    // Creates the pool and starts spawning clients. On Start, so ClientSales has subscribed to Spawned in OnEnable.
+    private void Start()
     {
-        if (_isInitialized)
-            return;
-        _isInitialized = true;
-
         if (_clientPrefab == null)
         {
             Debug.LogError($"{nameof(ClientSpawner)}: client prefab is not set.", this);

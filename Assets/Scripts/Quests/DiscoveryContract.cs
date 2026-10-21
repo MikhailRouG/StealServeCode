@@ -1,4 +1,5 @@
 using UnityEngine;
+using Zenject;
 
 /// <summary>
 /// Watches the player's <see cref="PlayerDiscoveries"/> and grants the experience of each
@@ -8,19 +9,21 @@ public class DiscoveryContract : MonoBehaviour
 {
     [SerializeField] private DiscoveryContractData[] _contracts;
 
-    private Player _player;
+    private PlayerDiscoveries _discoveries;
+    private PlayerLevel _level;
 
-    /// <summary>Starts watching for discoveries. Called once by <see cref="Bootstrap"/>.</summary>
-    public void Init(Player player)
+    [Inject]
+    private void Construct(PlayerDiscoveries discoveries, PlayerLevel level)
     {
-        _player = player;
-        _player.Discoveries.Discovered += OnDiscovered;
+        _discoveries = discoveries;
+        _level = level;
+        _discoveries.Discovered += OnDiscovered;
     }
 
     private void OnDestroy()
     {
-        if (_player != null)
-            _player.Discoveries.Discovered -= OnDiscovered;
+        if (_discoveries != null)
+            _discoveries.Discovered -= OnDiscovered;
     }
 
     private void OnDiscovered(ItemData item)
@@ -31,7 +34,7 @@ public class DiscoveryContract : MonoBehaviour
         foreach (DiscoveryContractData contract in _contracts)
         {
             if (contract != null && contract.Item == item)
-                _player.Level.AddExperience(contract.Experience);
+                _level.AddExperience(contract.Experience);
         }
     }
 }

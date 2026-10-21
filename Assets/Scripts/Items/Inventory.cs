@@ -1,16 +1,14 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 /// <summary>
-/// Plain C# inventory (not a MonoBehaviour). Holds at most one item of each type.
+/// Plain C# inventory (not a MonoBehaviour), created by the container (see <see cref="GameInstaller"/>).
+/// Starts empty and holds at most one item of each type.
 /// </summary>
-[Serializable]
 public class Inventory
 {
-    [Tooltip("Max number of items in total. 0 = unlimited.")]
-    [SerializeField, Min(0)] private int _maxItems;
-    [SerializeField] private List<ItemData> _items = new List<ItemData>();
+    private readonly int _maxItems;
+    private readonly List<ItemData> _items = new List<ItemData>();
 
     /// <summary>Raised after an item is added or removed.</summary>
     public event Action Changed;
@@ -21,6 +19,12 @@ public class Inventory
 
     /// <summary>The most recently added item, or null if the inventory is empty.</summary>
     public ItemData LastItem => _items.Count > 0 ? _items[_items.Count - 1] : null;
+
+    /// <param name="maxItems">Max number of items in total. 0 = unlimited.</param>
+    public Inventory(int maxItems)
+    {
+        _maxItems = Math.Max(0, maxItems);
+    }
 
     public bool CanAdd(ItemData item)
     {

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using R3;
 using UnityEngine;
+using Zenject;
 using Random = UnityEngine.Random;
 
 [Serializable]
@@ -19,7 +20,10 @@ public class ItemSpawnEntry
 /// the player no longer carries an item of its type (delivered, unloaded at the hub, lost on death).
 /// An item can have a guard monster. The spawner tracks whether the item is taken and switches its guard:
 /// taken — the guard chases the player; back on the map — the guard stops and walks to it.
-/// A killed guard reappears next to its item after a delay.
+/// A killed guard reappears next to its item after a delay. Guards are created through Zenject, so they get their services injected.
+/// With a <see cref="Zone"/> on the same object everything runs only while the zone is active (the player is near):
+/// capsules and standing guards are turned off with it, but a guard that chases the player keeps chasing,
+/// walks back to its item once the chase is over and only then hides.
 /// </summary>
 public class SurfaceItemSpawner : SurfaceSpawner<CollectableItem>
 {
@@ -39,25 +43,37 @@ public class SurfaceItemSpawner : SurfaceSpawner<CollectableItem>
     private const float GroundRaycastHeight = 2f;
     private const int MaxGuardPlacementAttempts = 10;
 
-    private Player _player;
+    private Inventory _inventory;
+    private IInstantiator _instantiator;
     private readonly Dictionary<Monster, CollectableItem> _itemByMonster = new Dictionary<Monster, CollectableItem>();
     private readonly Dictionary<CollectableItem, Monster> _guardByItem = new Dictionary<CollectableItem, Monster>();
     // Collected capsules that wait for their item to leave the player's inventory.
     private readonly List<CollectableItem> _pending = new List<CollectableItem>();
+    // Killed guards wait for their respawn delay; showing the zone must not bring them back early.
+    private readonly HashSet<Monster> _deadGuards = new HashSet<Monster>();
+    private bool _isZoneActive = true;
 
-    /// <summary>Remembers the player for the guard monsters to chase and spawns everything.</summary>
-    public void Init(Player player)
+    [Inject]
+    private void Construct(Inventory inventory, IInstantiator instantiator)
     {
-        _player = player;
+        _inventory = inventory;
+        _instantiator = instantiator;
 
-        if (_player != null)
+        _inventory.Changed += RespawnDropped;
+        Disposable.Create(() => _inventory.Changed -= RespawnDropped).AddTo(Subscriptions);
+    }
+
+    protected override void Start()
+    {
+        base.Start();
+
+        // Without a zone everything stays on all the time.
+        if (TryGetComponent(out Zone zone))
         {
-            Inventory inventory = _player.Inventory;
-            inventory.Changed += RespawnDropped;
-            Disposable.Create(() => inventory.Changed -= RespawnDropped).AddTo(Subscriptions);
+            zone.IsActive
+                .Subscribe(SetZoneActive)
+                .AddTo(Subscriptions);
         }
-
-        Init();
     }
 
     protected override void SpawnAll()
@@ -97,7 +113,7 @@ public class SurfaceItemSpawner : SurfaceSpawner<CollectableItem>
 
     private void RespawnDropped()
     {
-        IReadOnlyList<ItemData> carried = _player.Inventory.Items;
+        IReadOnlyList<ItemData> carried = _inventory.Items;
 
         for (int i = _pending.Count - 1; i >= 0; i--)
         {
@@ -121,49 +137,107 @@ public class SurfaceItemSpawner : SurfaceSpawner<CollectableItem>
     }
 
     // The item left the player and is back on the map: its guard stops chasing and walks to it.
-    // A killed guard is inactive and reappears next to the item anyway.
+    // A killed guard reappears next to the item anyway; one hidden with the zone just moves there.
     protected override void OnRespawned(CollectableItem item)
     {
-        if (!_guardByItem.TryGetValue(item, out Monster monster) || monster == null || !monster.isActiveAndEnabled)
+        if (!_guardByItem.TryGetValue(item, out Monster monster) || monster == null || _deadGuards.Contains(monster))
             return;
+
+        if (!monster.gameObject.activeSelf)
+        {
+            monster.transform.position = GetGuardPosition(item);
+            return;
+        }
 
         if (monster.TryGetComponent(out MonsterChaser chaser))
             chaser.Guard(GetGuardPosition(item));
     }
 
+    // Capsules are turned off with the container; guards one by one, since a busy one (chasing or walking back) stays.
+    private void SetZoneActive(bool active)
+    {
+        _isZoneActive = active;
+        SetSpawnedActive(active);
+
+        foreach (Monster monster in _itemByMonster.Keys)
+        {
+            if (monster == null || _deadGuards.Contains(monster))
+                continue;
+
+            if (active)
+                monster.gameObject.SetActive(true);
+            else if (!IsBusy(monster))
+                monster.gameObject.SetActive(false);
+        }
+    }
+
+    private static bool IsBusy(Monster monster) =>
+        monster.TryGetComponent(out MonsterChaser chaser) && IsBusy(chaser);
+
+    private static bool IsBusy(MonsterChaser chaser) => chaser.IsChasing.CurrentValue || chaser.IsReturning.CurrentValue;
+
+    // The guard stayed on while the zone was turned off (it was chasing or walking back) and is now standing at its item: it hides.
+    private void OnGuardIdle(Monster monster, MonsterChaser chaser)
+    {
+        // Not while the guard is being killed or turned off (its OnDisable resets the flags too).
+        if (_isZoneActive || _deadGuards.Contains(monster) || !chaser.isActiveAndEnabled || IsBusy(chaser))
+            return;
+
+        monster.gameObject.SetActive(false);
+    }
+
     private void SpawnGuard(Monster prefab, CollectableItem item)
     {
-        Quaternion rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-        Monster monster = Instantiate(prefab, GetGuardPosition(item), rotation);
+        Monster monster = _instantiator.InstantiatePrefabForComponent<Monster>(
+            prefab, GetGuardPosition(item), prefab.transform.rotation, null);
         monster.DestroyOnDeath = false;
         _itemByMonster.Add(monster, item);
         _guardByItem.Add(item, monster);
 
+        // Died fires before the monster turns itself off, so it already counts as dead in OnGuardIdle.
         monster.Died
-            .Subscribe(dead => StartCoroutine(RespawnGuardAfterDelay(dead)))
+            .Subscribe(OnGuardDied)
             .AddTo(Subscriptions);
 
         if (!monster.TryGetComponent(out MonsterChaser chaser))
             return;
-
-        chaser.Init(_player);
 
         // The item is taken: its guard chases the player. Killed guards are inactive and don't react.
         item.Collected
             .Where(_ => chaser != null && chaser.isActiveAndEnabled)
             .Subscribe(_ => chaser.StartChase())
             .AddTo(Subscriptions);
+
+        // The chase ends or the guard reaches its item; OnGuardIdle checks that both are over.
+        chaser.IsChasing
+            .Skip(1)
+            .Where(isChasing => !isChasing)
+            .Subscribe(_ => OnGuardIdle(monster, chaser))
+            .AddTo(Subscriptions);
+        chaser.IsReturning
+            .Skip(1)
+            .Where(isReturning => !isReturning)
+            .Subscribe(_ => OnGuardIdle(monster, chaser))
+            .AddTo(Subscriptions);
     }
 
+    private void OnGuardDied(Monster monster)
+    {
+        _deadGuards.Add(monster);
+        StartCoroutine(RespawnGuardAfterDelay(monster));
+    }
+
+    // Back next to the item; while the zone is off it stays hidden until the zone turns on.
     private IEnumerator RespawnGuardAfterDelay(Monster monster)
     {
         yield return new WaitForSeconds(_monsterRespawnDelay);
 
+        _deadGuards.Remove(monster);
         if (monster == null || !_itemByMonster.TryGetValue(monster, out CollectableItem item) || item == null)
             yield break;
 
         monster.transform.position = GetGuardPosition(item);
-        monster.gameObject.SetActive(true);
+        monster.gameObject.SetActive(_isZoneActive);
     }
 
     // Monsters have no gravity, so they are placed right on the ground.

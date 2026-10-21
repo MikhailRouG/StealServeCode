@@ -15,5 +15,5 @@ MonoBehaviour:
   _itemName: Watermelon
   _icon: {fileID: 21300000, guid: bea27021350b0a04094decbc73ca72e0, type: 3}
   _model: {fileID: 3295352276079069965, guid: a096e234f6edf534885410143af3dee0, type: 3}
-  _level: 1
-  _experience: 30
+  _level: 4
+  _experience: 120

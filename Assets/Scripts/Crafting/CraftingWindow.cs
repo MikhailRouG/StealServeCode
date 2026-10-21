@@ -9,7 +9,7 @@ using UnityEngine.UI;
 /// after the dish's cook time, puts the dish straight on the showcase. The cook button shows the time left.
 /// The Storage tab lists everything that is in the storage (only to look at: items can't be put up for sale).
 /// On both tabs the right half shows how the selected item is cooked (top) and its sale price and interest (bottom).
-/// Opened by <see cref="TruckCraftingMenu"/> / <see cref="CraftingStation"/>. Build the UI via Tools > Crafting > Create Crafting UI.
+/// Opened by <see cref="TruckCraftingMenu"/> / <see cref="CraftingStation"/>.
 /// </summary>
 public class CraftingWindow : MonoBehaviour
 {
@@ -51,6 +51,9 @@ public class CraftingWindow : MonoBehaviour
     [Tooltip("Sale price and interest of the selected storage item (Storage tab).")]
     [SerializeField] private ItemSaleInfoView _storageSaleInfo;
 
+    [Header("Animation")]
+    [SerializeField] private WindowTween _animation = new WindowTween(WindowTween.Style.Popup);
+
     private readonly List<RecipeSlotView> _slots = new List<RecipeSlotView>();
     private readonly List<IngredientView> _ingredients = new List<IngredientView>();
     private readonly List<StorageItemView> _storageItems = new List<StorageItemView>();
@@ -62,7 +65,7 @@ public class CraftingWindow : MonoBehaviour
     private TMP_Text _craftLabel;
     private string _craftText;
 
-    public bool IsOpen => gameObject.activeSelf;
+    public bool IsOpen => _animation.IsShown;
 
     /// <summary>Raised after the window is shown.</summary>
     public event System.Action Opened;
@@ -83,6 +86,7 @@ public class CraftingWindow : MonoBehaviour
             _craftText = _craftLabel.text;
 
         CreateSlots();
+        _animation.Init(gameObject);
     }
 
     // The time left changes every frame while a dish is cooking.
@@ -151,7 +155,9 @@ public class CraftingWindow : MonoBehaviour
         if (_player != null)
             _player.Move.Freeze(true);
 
+        // Activated before the animation so that Awake (and Init of the animation) runs on the first open.
         gameObject.SetActive(true);
+        _animation.Show();
         ShowCraftingTab();
         Select(_selected != null ? _selected : (_slots.Count > 0 ? _slots[0] : null));
         Opened?.Invoke();
@@ -167,7 +173,7 @@ public class CraftingWindow : MonoBehaviour
             _player.Move.Freeze(false);
 
         _player = null;
-        gameObject.SetActive(false);
+        _animation.Hide();
         Closed?.Invoke();
     }
 

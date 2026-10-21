@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Serialization;
+using Zenject;
 
 /// <summary>
 /// Crafting place: opens the <see cref="CraftingWindow"/> when the player enters the trigger
@@ -8,35 +9,42 @@ using UnityEngine.Serialization;
 [RequireComponent(typeof(Collider))]
 public class CraftingStation : MonoBehaviour
 {
-    [Tooltip("If empty, the first CraftingWindow in the scene (even inactive) is used.")]
-    [SerializeField] private CraftingWindow _window;
-    [Tooltip("Where ingredients come from. If empty, the first HubZone in the scene is used.")]
+    [Tooltip("The hub whose kitchen cooks here and whose storage the ingredients come from.")]
     [FormerlySerializedAs("_truck")]
     [SerializeField] private HubZone _hubZone;
+
+    private CraftingWindow _window;
+    private TruckKitchen _kitchen;
 
     private void Reset()
     {
         GetComponent<Collider>().isTrigger = true;
     }
 
-    private void Start()
+    [Inject]
+    private void Construct(CraftingWindow window)
     {
-        if (_window == null)
-            _window = FindFirstObjectByType<CraftingWindow>(FindObjectsInactive.Include);
+        _window = window;
+    }
 
-        if (_hubZone == null)
-            _hubZone = FindFirstObjectByType<HubZone>();
+    private void Awake()
+    {
+        if (_hubZone != null)
+            _kitchen = _hubZone.GetComponent<TruckKitchen>();
+
+        if (_kitchen == null)
+            Debug.LogError($"{nameof(CraftingStation)}: hub zone with a TruckKitchen is not set.", this);
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (_window != null && _hubZone != null && other.TryGetComponent(out Player player))
-            _window.Open(_hubZone.GetComponent<TruckKitchen>(), player);
+        if (_kitchen != null && other.TryGetComponent(out Player player))
+            _window.Open(_kitchen, player);
     }
 
     private void OnTriggerExit(Collider other)
     {
-        if (_window != null && _window.IsOpen && other.TryGetComponent(out Player _))
+        if (_window.IsOpen && other.TryGetComponent(out Player _))
             _window.Close();
     }
 }

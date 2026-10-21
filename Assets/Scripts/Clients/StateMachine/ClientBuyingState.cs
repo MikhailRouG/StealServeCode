@@ -1,8 +1,9 @@
+using System;
 using UnityEngine;
 
 /// <summary>
-/// The client has bought an item: walks to the showcase's client point, stands there a moment
-/// and takes the item (its model leaves the showcase), then walks back to where it left its path
+/// The client has chosen an item: walks to the showcase's client point, stands there a moment
+/// and takes the item (its model leaves the showcase, the player is paid), then walks back to where it left its path
 /// and goes back to <see cref="ClientWalkState"/>.
 /// </summary>
 public class ClientBuyingState : IClientState
@@ -20,6 +21,7 @@ public class ClientBuyingState : IClientState
 
     private TruckShowcase _showcase;
     private int _slot;
+    private Action _taken;
     private bool _isTaken;
     private Vector3 _returnPosition;
     private Phase _phase;
@@ -34,11 +36,15 @@ public class ClientBuyingState : IClientState
 
     public float Speed => _phase == Phase.Take ? 0f : _client.WalkSpeed;
 
-    /// <summary>Sets the bought item. Called right before entering the state.</summary>
-    public void Setup(TruckShowcase showcase, int slot)
+    /// <summary>
+    /// Sets the bought item. Called right before entering the state.
+    /// <paramref name="taken"/> is called once the client takes the item.
+    /// </summary>
+    public void Setup(TruckShowcase showcase, int slot, Action taken)
     {
         _showcase = showcase;
         _slot = slot;
+        _taken = taken;
     }
 
     public void Enter()
@@ -76,9 +82,12 @@ public class ClientBuyingState : IClientState
 
     public void Exit()
     {
-        // The client can be turned off on the way; the item is paid for, so free the slot anyway.
-        TakeItem();
+        // The client can be turned off on the way: it hasn't paid, so the item goes back on sale.
+        if (!_isTaken && _showcase != null)
+            _showcase.Release(_slot);
+
         _showcase = null;
+        _taken = null;
     }
 
     private void TakeItem()
@@ -88,6 +97,7 @@ public class ClientBuyingState : IClientState
 
         _isTaken = true;
         _showcase.Take(_slot);
+        _taken?.Invoke();
     }
 
     // Moves on the client's own height toward the target and faces the way. True when there.

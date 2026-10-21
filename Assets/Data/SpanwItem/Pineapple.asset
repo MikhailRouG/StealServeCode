@@ -15,5 +15,5 @@ MonoBehaviour:
   _itemName: Pineapple
   _icon: {fileID: 21300000, guid: 93af707ed2069c94e950c229b7010f93, type: 3}
   _model: {fileID: 6430897592485456616, guid: 0abafefd213dea74ebb589cd1db5b9e1, type: 3}
-  _level: 1
-  _experience: 25
+  _level: 3
+  _experience: 80

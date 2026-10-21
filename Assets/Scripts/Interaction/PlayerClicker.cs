@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using Zenject;
 
 /// <summary>
 /// Put on a scene object (e.g. SceneManager): on left click casts a ray from the camera through the cursor
@@ -11,8 +12,6 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class PlayerClicker : MonoBehaviour
 {
-    [Tooltip("Player passed to the clicked object. If empty, the first Player in the scene is used.")]
-    [SerializeField] private Player _player;
     [Tooltip("Camera the ray is cast from. If empty, Camera.main is used.")]
     [SerializeField] private Camera _camera;
     [SerializeField, Min(1f)] private float _maxDistance = 100f;
@@ -25,6 +24,7 @@ public class PlayerClicker : MonoBehaviour
     [SerializeField, Min(0f)] private float _debugHitRadius = 0.15f;
 
     private readonly RaycastHit[] _hits = new RaycastHit[16];
+    private Player _player;
 
     private Ray _lastRay;
     private Vector3 _lastEnd;
@@ -32,10 +32,10 @@ public class PlayerClicker : MonoBehaviour
     private Color _lastColor;
     private float _lastClickTime = float.NegativeInfinity;
 
-    private void Awake()
+    [Inject]
+    private void Construct(Player player)
     {
-        if (_player == null)
-            _player = FindFirstObjectByType<Player>(FindObjectsInactive.Include);
+        _player = player;
     }
 
     private void Update()
@@ -45,7 +45,7 @@ public class PlayerClicker : MonoBehaviour
             return;
 
         // A dead player is turned off and can't click on anything.
-        if (_player == null || !_player.gameObject.activeInHierarchy)
+        if (!_player.gameObject.activeInHierarchy)
             return;
 
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
